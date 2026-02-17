@@ -627,8 +627,32 @@ jobs:
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig &&
+          
+          # 第一步：生成基础 .config（gki_defconfig）
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
+          
+          # 第二步：合并 Qualcomm pineapple(SM8650) 及 OPlus 的 vendor config 片段（LineageOS SM8650内核必需）
+          for cfg in \
+            arch/arm64/configs/vendor/pineapple_GKI.config \
+            arch/arm64/configs/vendor/oplus/pineapple_GKI.config; do
+            if [ -f "$cfg" ]; then
+              echo "正在合并 vendor config: $cfg"
+              ./scripts/kconfig/merge_config.sh -m -r out/.config "$cfg"
+              make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out olddefconfig
+            else
+              echo "跳过不存在的 vendor config: $cfg"
+            fi
+          done
+          
+          # 第三步：编译内核 Image
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
+          
+          # 验证 Image 是否生成成功
+          if [ ! -f "out/arch/arm64/boot/Image" ]; then
+            echo "错误：内核 Image 未生成，编译失败！"
+            exit 1
+          fi
+          echo "内核 Image 生成成功：$(ls -lh out/arch/arm64/boot/Image)"
           
           # 编译后时间劫持二次校验
           echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
@@ -641,6 +665,7 @@ jobs:
           df -h
          
       - name: 应用KPM并修补内核
+        if: success() && inputs.kpm_enable != 'false'
         run: |
           if [[ ${{ github.event.inputs.kpm_enable }} == 'builtin' && ( "${{ github.event.inputs.ksu_type }}" == "sukisu" || "${{ github.event.inputs.ksu_type }}" == "resukisu" ) ]]; then
             echo "正在应用KPM并修补内核..."
