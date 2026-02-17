@@ -1,4 +1,4 @@
-name: 加速版构建 6.1.118 欧加真OKI内核
+name: 加速版构建 6.1.118 Waffle(OnePlus12) LineageOS内核
 
 env:
   TZ: Asia/Shanghai
@@ -658,7 +658,7 @@ jobs:
           git clone https://github.com/cctv18/AnyKernel3 --depth=1
           rm -rf ./AnyKernel3/.git
           cd AnyKernel3
-          cp ../common/out/arch/arm64/boot/Image ./Image
+          cp ./common/out/arch/arm64/boot/Image ./Image
           if [[ ! -f ./Image ]]; then
             echo "未找到内核镜像文件，构建可能出错"
             exit 1
