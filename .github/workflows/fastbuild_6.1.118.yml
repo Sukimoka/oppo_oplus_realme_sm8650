@@ -628,6 +628,20 @@ jobs:
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
           
+          # 修复缺失的厂商私有 Kconfig stub（LineageOS SM8650仓库引用了不存在的目录）
+          echo "正在修复缺失的 Kconfig stub..."
+          # 找出所有 Kconfig 中引用但不存在的 source 文件，创建空 stub
+          grep -rh '^source' drivers/base/Kconfig 2>/dev/null | awk '{print $2}' | tr -d '"' | while read kconfig_path; do
+            if [ ! -f "$kconfig_path" ]; then
+              echo "创建缺失的 stub: $kconfig_path"
+              mkdir -p "$(dirname "$kconfig_path")"
+              touch "$kconfig_path"
+            fi
+          done
+          # 已知缺失的目录，直接创建
+          mkdir -p drivers/base/kernelFwUpdate
+          touch drivers/base/kernelFwUpdate/Kconfig
+          
           # 第一步：生成基础 .config（gki_defconfig）
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
           
