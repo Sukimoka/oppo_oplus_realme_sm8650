@@ -624,13 +624,15 @@ jobs:
           grep -rh '^source' drivers/base/Kconfig 2>/dev/null | awk '{print $2}' | tr -d '"' | while read kconfig_path; do
             if [ ! -f "$kconfig_path" ]; then
               echo "创建缺失的 stub: $kconfig_path"
-              mkdir -p "$(dirname "$kconfig_path")"
+              dir_path="$(dirname "$kconfig_path")"
+              # 如果父目录路径存在但是个文件（非目录），先删除
+              if [ -e "$dir_path" ] && [ ! -d "$dir_path" ]; then
+                rm -f "$dir_path"
+              fi
+              mkdir -p "$dir_path"
               touch "$kconfig_path"
             fi
           done
-          # 已知缺失的目录，直接创建
-          mkdir -p drivers/base/kernelFwUpdate
-          touch drivers/base/kernelFwUpdate/Kconfig
           
           # 第一步：生成基础 .config（gki_defconfig）
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
